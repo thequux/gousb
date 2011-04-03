@@ -1,4 +1,3 @@
-GOROOT=/usr/local/google/home/thequux/go
 include $(GOROOT)/src/Make.inc
 
 DEPS=\

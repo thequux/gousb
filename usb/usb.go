@@ -78,6 +78,10 @@ func returnUsbError(errno C.int) *UsbError {
 	return err
 }
 
+func (err *UsbError) String() string {
+	return err.Text
+}
+
 //////////////////////// Basic lifecycle support...
 
 // Automatically called when necessary

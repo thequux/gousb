@@ -6,6 +6,7 @@ package usb
 import "C"
 import "reflect"
 import "unsafe"
+import "utf16"
 
 type (
 	DescriptorType int
@@ -67,6 +68,12 @@ const (
 	TRANSFER_TYPE_MASK        = 0x03
 )
 
+const (
+	DIR_OUT = 0x00
+	DIR_IN = 0x80
+	DIR_MASK = 0x80
+)
+
 type (
 	DeviceDescriptor struct {
 		BLength             byte
@@ -88,7 +95,7 @@ type (
 		BLength             byte
 		BDescriptorType     DescriptorType
 		WTotalLength        uint16
-		BConfigurationValue byte
+		BConfigurationValue int
 		IConfiguration      byte
 		BmAttributes        byte
 		MaxPower            byte
@@ -168,7 +175,7 @@ func parseConfigDescriptor(desc *C.struct_libusb_config_descriptor) ConfigDescri
 		BLength:             byte(desc.bLength),
 		BDescriptorType:     DescriptorType(desc.bDescriptorType),
 		WTotalLength:        uint16(desc.wTotalLength),
-		BConfigurationValue: byte(desc.bConfigurationValue),
+		BConfigurationValue: int(desc.bConfigurationValue),
 		IConfiguration:      byte(desc.iConfiguration),
 		BmAttributes:        byte(desc.bmAttributes),
 		MaxPower:            byte(desc.MaxPower),
@@ -234,3 +241,80 @@ func (dev *Device) GetDeviceDescriptor() (DeviceDescriptor, *UsbError) {
 	}
 	return parseDeviceDescriptor(&desc), err
 }
+
+func (dev *Device) GetActiveConfigDescriptor() (ConfigDescriptor, *UsbError) {
+	var desc *C.struct_libusb_config_descriptor
+	err := returnUsbError(C.libusb_get_active_config_descriptor(dev.device, &desc))
+	if err != nil {
+		return ConfigDescriptor{}, err
+	}
+	ret := parseConfigDescriptor(desc)
+	C.libusb_free_config_descriptor(desc)
+	return ret, nil
+}
+
+func (dev *Device) GetConfigDescriptor(config_index int) (ConfigDescriptor, *UsbError) {
+	var desc *C.struct_libusb_config_descriptor
+	err := returnUsbError(C.libusb_get_config_descriptor(dev.device, C.uint8_t(config_index), &desc))
+	if err != nil {
+		return ConfigDescriptor{}, err
+	}
+	ret := parseConfigDescriptor(desc)
+	C.libusb_free_config_descriptor(desc)
+	return ret, nil
+}
+
+func (dev *Device) GetConfigByValue(bConfigurationValue byte) (ConfigDescriptor, *UsbError) {
+	var desc *C.struct_libusb_config_descriptor
+	err := returnUsbError(C.libusb_get_config_descriptor_by_value(dev.device, C.uint8_t(bConfigurationValue), &desc))
+	if err != nil {
+		return ConfigDescriptor{}, err
+	}
+	ret := parseConfigDescriptor(desc)
+	C.libusb_free_config_descriptor(desc)
+	return ret, nil
+}
+
+func (h *DeviceHandle) GetStringDescriptor(index byte, langid uint16) (string, *UsbError) {
+	buf := make([]uint16, 128)
+	
+	rlen, err := decodeUsbError(C.libusb_get_string_descriptor(h.handle, C.uint8_t(index), C.uint16_t(langid), (*C.uchar)(unsafe.Pointer(&buf[0])), 256))
+	if err != nil {
+		return "", err
+	}
+	return string(utf16.Decode(buf[1:rlen/2])), nil
+}
+
+func (h *DeviceHandle) GetDefaultStringDescriptor(index byte) (string, *UsbError) {
+	if h.default_langid == 0 {
+		langs, err := h.GetLangIds()
+		if err != nil {
+			return "", err
+		} else if len(langs) > 0 {
+			h.default_langid = langs[0]
+		} else {
+			return "", UsbErrorNotSupported
+		}
+	}
+	
+	return h.GetStringDescriptor(index, h.default_langid)
+}
+		
+
+func (h *DeviceHandle) GetLangIds() ([]uint16, *UsbError) {
+	var buf [256]C.uchar
+	u16buf := (*[128]C.uint16_t)(unsafe.Pointer(&buf[0]))
+	
+	rlen, err := decodeUsbError(C.libusb_get_string_descriptor(h.handle, 0,0, &buf[0], 256))
+
+	if err != nil {
+		return nil, err
+	}
+	// I'm explicitly ignoring the first two bytes, which are length and descriptor type, respectively.
+	ret := make([]uint16, rlen/2 - 1)
+	for i := 1; i < rlen / 2; i++ {
+		ret[i-1] = uint16(u16buf[i])
+	}
+	return ret, nil
+}
+

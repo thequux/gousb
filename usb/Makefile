@@ -5,6 +5,7 @@ TARG=usb
 
 CGOFILES=\
 	usb.go \
-	descriptor.go
+	descriptor.go \
+	io.go
 
 include $(GOROOT)/src/Make.pkg

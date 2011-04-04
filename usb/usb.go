@@ -7,7 +7,7 @@ package usb
 import "C"
 import "reflect"
 import "unsafe"
-
+import "fmt"
 
 type UsbError struct{
 	Text string
@@ -79,7 +79,7 @@ func returnUsbError(errno C.int) *UsbError {
 }
 
 func (err *UsbError) String() string {
-	return err.Text
+	return fmt.Sprintf("%#v", err)
 }
 
 //////////////////////// Basic lifecycle support...
@@ -128,7 +128,8 @@ type Device struct {
 type DeviceHandle struct {
 	ctx *Context
 	handle *C.struct_libusb_device_handle
-	interfaces map[int]*Interface
+	default_langid uint16
+	interfaces map[byte]*Interface
 }
 
 func (ctx *Context) wrapDevice(dev *C.struct_libusb_device) *Device {
@@ -189,7 +190,7 @@ func (dev *Device) GetMaxIsoPacketSize(endpoint int) (sz int, err *UsbError) {
 	
 
 func (dev *Device) Open() (handle *DeviceHandle, err *UsbError) {
-	handle = &DeviceHandle{dev.ctx, nil, make(map[int]*Interface, 0)}
+	handle = &DeviceHandle{dev.ctx, nil, 0, make(map[byte]*Interface, 0)}
 	_, err = decodeUsbError(C.libusb_open(dev.device, &handle.handle))
 	if err != nil {
 		handle = nil
@@ -197,9 +198,10 @@ func (dev *Device) Open() (handle *DeviceHandle, err *UsbError) {
 	return
 }
 
+// Open a device by vendor/product id. If more than one device
+// matches, return the first.
 func (ctx *Context) Open(vendor, product int) (*DeviceHandle,*UsbError) {
-	
-	handle := &DeviceHandle{ctx, nil, make(map[int]*Interface, 0)}
+	handle := &DeviceHandle{ctx, nil, 0, make(map[byte]*Interface, 0)}
 	dev := C.libusb_open_device_with_vid_pid(ctx.ctx, C.uint16_t(vendor), C.uint16_t(product))
 
 	if dev == nil {
@@ -209,10 +211,12 @@ func (ctx *Context) Open(vendor, product int) (*DeviceHandle,*UsbError) {
 	return handle, nil
 }
 
+// Return a *Device for the given handle.
 func (h *DeviceHandle) GetDevice() *Device {
 	return h.ctx.wrapDevice(C.libusb_get_device(h.handle))
 }
 
+// Return the active configuration
 func (h *DeviceHandle) GetConfiguration() (int, *UsbError) {
 	var res C.int
 	if err := returnUsbError(C.libusb_get_configuration(h.handle, &res)); err != nil {
@@ -221,18 +225,19 @@ func (h *DeviceHandle) GetConfiguration() (int, *UsbError) {
 	return int(res), nil
 }
 
+// Set the active configuration
 func (h *DeviceHandle) SetConfiguration(config int) *UsbError {
 	return returnUsbError(C.libusb_set_configuration(h.handle, C.int(config)))
 }
 
-//////////////////////// Interfaces
 type Interface struct {
 	handle *DeviceHandle
 	num C.int
 	claimed int
 }
 
-func (h *DeviceHandle) GetInterface(iface_no int) *Interface {
+// Get an interface handle
+func (h *DeviceHandle) GetInterface(iface_no byte) *Interface {
 	if iface, ok := h.interfaces[iface_no]; ok {
 		return iface
 	}
@@ -241,6 +246,7 @@ func (h *DeviceHandle) GetInterface(iface_no int) *Interface {
 	return iface
 }
 
+// Claim this interface. Fails if the interface is already claimed by another process.
 func (i *Interface) Claim() *UsbError {
 	if err := returnUsbError(C.libusb_claim_interface(i.handle.handle, i.num)); err != nil {
 		return err
@@ -286,5 +292,27 @@ func (h *DeviceHandle) Reset() *UsbError {
 }
 
 
+func (i *DeviceHandle) OpenEndpoint(ep EndpointDescriptor) (res *EndpointHandle, err *UsbError) {
+	//if i.claimed <= 0 {
+	//	return nil, &UsbError{"Interface not claimed"}
+	//}
+	
+	res = &EndpointHandle{
+	handle: i,
+	readable: ep.BEndpointAddress & DIR_MASK == DIR_IN, // if not, it's an output
+	ep: ep.BEndpointAddress,
+	}
 
-///////////////////////
+	switch ep.BmAttributes & TRANSFER_TYPE_MASK {
+	case TRANSFER_TYPE_INTERRUPT:
+		res.transfer = interruptTransfer
+	default:
+		panic("Unsupported transfer type")
+	}
+	return res, nil
+}
+
+func (ep *EndpointHandle) ClearHalt() *UsbError {
+	err := returnUsbError(C.libusb_clear_halt(ep.handle.handle, C.uchar(ep.ep)))
+	return err
+}

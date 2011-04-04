@@ -6,8 +6,8 @@ DEPS=\
 export GOFLAGS=-N
 export GOLDFLAGS=-e
 
-TARG=usb_t
+TARG=bsl
 GOFILES=\
-	main.go
+	bsl.go
 
 include $(GOROOT)/src/Make.cmd

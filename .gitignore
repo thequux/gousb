@@ -4,3 +4,6 @@ _cgo*
 _obj
 usb_t
 bsl
+*~
+.#*
+\#*

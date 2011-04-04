@@ -1,7 +1,8 @@
 include $(GOROOT)/src/Make.inc
 
 DEPS=\
-	usb
+	usb\
+	hex
 
 export GOFLAGS=-N
 export GOLDFLAGS=-e

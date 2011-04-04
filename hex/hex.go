@@ -42,7 +42,7 @@ func Reblock(iter HexfileIterator, record_size int, preserve_splits bool) Hexfil
 
 	go func() {
 		defer close(stream)
-		buffer = make([]byte, record_size*2)
+		buffer := make([]byte, record_size*2)
 		addr := -1
 		drain := func(flush bool) {
 			for len(buffer) >= record_size {
@@ -56,7 +56,7 @@ func Reblock(iter HexfileIterator, record_size int, preserve_splits bool) Hexfil
 			if !flush {
 				return
 			}
-			if len(buffer > 0) {
+			if len(buffer) > 0 {
 				stream <- &Record{
 					Address: addr,
 					Data:    buffer,
@@ -72,7 +72,7 @@ func Reblock(iter HexfileIterator, record_size int, preserve_splits bool) Hexfil
 				addr = record.Address
 			}
 
-			buffer := append(buffer, record.Data)
+			buffer = append(buffer, record.Data...)
 			// No need to completely flush it, unless we
 			// want to preserve breaks in the original.
 			drain(preserve_splits)
@@ -98,6 +98,6 @@ func (iter *ReblockedIterator) Next() *Record {
 }
 
 func (iter *ReblockedIterator) Progress() (pos, max int) {
-	pos, pax = iter.pos, iter.max
+	pos, max = iter.pos, iter.max
 	return
 }

@@ -111,6 +111,7 @@ func (iter *StreamedIterator) Next() *Record {
 	return next
 }
 
+
 func (iter *StreamedIterator) Progress() (pos, max int) {
 	pos, max = iter.pos, iter.max
 	return

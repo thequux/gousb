@@ -6,6 +6,7 @@ TARG=hex
 GOFILES=\
 	hex.go \
 	util.go \
+	intelHEX.go \
 	ti-text.go
 
 

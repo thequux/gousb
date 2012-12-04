@@ -1,4 +1,5 @@
 package usb
+
 // #cgo CFLAGS: -I/usr/include/libusb-1.0
 // #cgo LDFLAGS: -lusb-1.0
 // #include <libusb.h>
@@ -6,7 +7,7 @@ package usb
 import "C"
 import "reflect"
 import "unsafe"
-import "utf16"
+import "unicode/utf16"
 
 type (
 	DescriptorType int
@@ -69,8 +70,8 @@ const (
 )
 
 const (
-	DIR_OUT = 0x00
-	DIR_IN = 0x80
+	DIR_OUT  = 0x00
+	DIR_IN   = 0x80
 	DIR_MASK = 0x80
 )
 
@@ -135,18 +136,18 @@ type (
 // 
 // res := sliceify(foo_array, []Foo(nil), foo_len).([]Foo)
 func sliceify(arg interface{}, sample interface{}, length int) interface{} {
-	val := reflect.NewValue(arg).(*reflect.PtrValue)
+	val := reflect.ValueOf(arg)
 	target := unsafe.Pointer(&reflect.SliceHeader{
-		Data: val.Get(),
+		Data: val.Pointer(),
 		Len:  length,
 		Cap:  length,
 	})
-	return unsafe.Unreflect(reflect.Typeof(sample), target)
+	return unsafe.Unreflect(reflect.TypeOf(sample), target)
 }
 
 func cloneSlice(arg interface{}) interface{} {
-	oldval := reflect.NewValue(arg).(*reflect.SliceValue)
-	val := reflect.MakeSlice(oldval.Type().(*reflect.SliceType), oldval.Len(), oldval.Len())
+	oldval := reflect.ValueOf(arg)
+	val := reflect.MakeSlice(oldval.Type(), oldval.Len(), oldval.Len())
 	reflect.Copy(val, oldval)
 	return val.Interface()
 }
@@ -277,12 +278,12 @@ func (dev *Device) GetConfigByValue(bConfigurationValue byte) (ConfigDescriptor,
 
 func (h *DeviceHandle) GetStringDescriptor(index byte, langid uint16) (string, *UsbError) {
 	buf := make([]uint16, 128)
-	
+
 	rlen, err := decodeUsbError(C.libusb_get_string_descriptor(h.handle, C.uint8_t(index), C.uint16_t(langid), (*C.uchar)(unsafe.Pointer(&buf[0])), 256))
 	if err != nil {
 		return "", err
 	}
-	return string(utf16.Decode(buf[1:rlen/2])), nil
+	return string(utf16.Decode(buf[1 : rlen/2])), nil
 }
 
 func (h *DeviceHandle) GetDefaultStringDescriptor(index byte) (string, *UsbError) {
@@ -296,25 +297,23 @@ func (h *DeviceHandle) GetDefaultStringDescriptor(index byte) (string, *UsbError
 			return "", UsbErrorNotSupported
 		}
 	}
-	
+
 	return h.GetStringDescriptor(index, h.default_langid)
 }
-		
 
 func (h *DeviceHandle) GetLangIds() ([]uint16, *UsbError) {
 	var buf [256]C.uchar
 	u16buf := (*[128]C.uint16_t)(unsafe.Pointer(&buf[0]))
-	
-	rlen, err := decodeUsbError(C.libusb_get_string_descriptor(h.handle, 0,0, &buf[0], 256))
+
+	rlen, err := decodeUsbError(C.libusb_get_string_descriptor(h.handle, 0, 0, &buf[0], 256))
 
 	if err != nil {
 		return nil, err
 	}
 	// I'm explicitly ignoring the first two bytes, which are length and descriptor type, respectively.
-	ret := make([]uint16, rlen/2 - 1)
-	for i := 1; i < rlen / 2; i++ {
+	ret := make([]uint16, rlen/2-1)
+	for i := 1; i < rlen/2; i++ {
 		ret[i-1] = uint16(u16buf[i])
 	}
 	return ret, nil
 }
-

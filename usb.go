@@ -78,7 +78,7 @@ func returnUsbError(errno C.int) *UsbError {
 	return err
 }
 
-func (err *UsbError) String() string {
+func (err *UsbError) Error() string {
 	return fmt.Sprintf("%#v", err)
 }
 
@@ -162,7 +162,7 @@ func (ctx *Context) GetDeviceList() (dev []*Device, err *UsbError) {
 	}
 
 	hdr := &reflect.SliceHeader{Data: uintptr(unsafe.Pointer(baseptr)), Len: count, Cap: count}
-	devlist = unsafe.Unreflect(unsafe.Typeof(devlist), unsafe.Pointer(&hdr)).([]*C.struct_libusb_device)
+	devlist = *(*[]*C.struct_libusb_device)(unsafe.Pointer(&hdr))
 	dev = make([]*Device, count)
 	for i := 0; i < count; i++ {
 		dev[i] = ctx.wrapDevice(devlist[i])

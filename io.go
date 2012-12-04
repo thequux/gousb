@@ -7,7 +7,7 @@ package usb
 import "C"
 import (
 	"io"
-	"os"
+	"syscall"
 	"unsafe"
 )
 
@@ -18,6 +18,7 @@ type Endpoint interface {
 	io.Reader
 	io.Writer
 }
+
 /*
 type EndpointReader interface {
 	Endpoint
@@ -33,24 +34,23 @@ type EndpointHandle struct {
 	descriptor *EndpointDescriptor
 	readable   bool
 	ep         byte // endpoint number
-	transfer   func(ep *EndpointHandle, p []byte, for_read bool) (n int, err os.Error)
+	transfer   func(ep *EndpointHandle, p []byte, for_read bool) (n int, err error)
 }
 
-func (ep *EndpointHandle) Write(p []byte) (n int, err os.Error) {
+func (ep *EndpointHandle) Write(p []byte) (n int, err error) {
 	if ep.readable {
-		return 0, os.EBADF
+		return 0, syscall.EBADF
 	}
 	n, err = ep.transfer(ep, p, false)
 	if err == nil && n < len(p) {
-		err = os.EAGAIN
+		err = syscall.EAGAIN
 	}
 	return
 }
 
-
-func (ep *EndpointHandle) Read(p []byte) (n int, err os.Error) {
+func (ep *EndpointHandle) Read(p []byte) (n int, err error) {
 	if !ep.readable {
-		return 0, os.EBADF
+		return 0, syscall.EBADF
 	}
 	return ep.transfer(ep, p, true)
 }
@@ -70,14 +70,14 @@ type TwoWayStream struct {
 	W io.Writer
 }
 
-func (s TwoWayStream) Read(p []byte) (n int, err os.Error) {
+func (s TwoWayStream) Read(p []byte) (n int, err error) {
 	return s.R.Read(p)
 }
-func (s TwoWayStream) Write(p []byte) (n int, err os.Error) {
+func (s TwoWayStream) Write(p []byte) (n int, err error) {
 	return s.W.Write(p)
 }
 
-func interruptTransfer(ep *EndpointHandle, p []byte, _ bool) (n int, err os.Error) {
+func interruptTransfer(ep *EndpointHandle, p []byte, _ bool) (n int, err error) {
 	var transferred C.int
 	err0 := returnUsbError(C.libusb_interrupt_transfer(
 		ep.handle.handle,
@@ -92,7 +92,7 @@ func interruptTransfer(ep *EndpointHandle, p []byte, _ bool) (n int, err os.Erro
 	return int(transferred), err
 }
 
-func bulkTransfer(ep *EndpointHandle, p []byte, _ bool) (n int, err os.Error) {
+func bulkTransfer(ep *EndpointHandle, p []byte, _ bool) (n int, err error) {
 	var transferred C.int
 	err0 := returnUsbError(C.libusb_bulk_transfer(
 		ep.handle.handle,
@@ -107,4 +107,3 @@ func bulkTransfer(ep *EndpointHandle, p []byte, _ bool) (n int, err os.Error) {
 
 	return int(transferred), err
 }
-

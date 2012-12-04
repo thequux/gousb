@@ -3,7 +3,6 @@ _cgo*
 *.o
 _obj
 usb_t
-bsl
 *~
 .#*
 \#*

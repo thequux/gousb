@@ -1,7 +1,7 @@
 package main
 
 import (
-	"usb"
+	"gopkg.thequux.com/usb"
 	"log"
 )
 
